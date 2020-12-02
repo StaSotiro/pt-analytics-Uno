@@ -14,9 +14,13 @@ salary = salary[, -1]
 
 index <- sapply(salary, class) == "numeric"
 sal_num <- salary[index]
+
 summary(sal_num)
+
 par(mfrow=c(2,3))
-apply(sal_num, 2, hist)
+for (col in colnames(sal_num)) {
+  hist(sal_num[], xlab=col)  
+}
 
 # Getting the summary initially we get that no field is following a normal distribution, especially in the salaries we see a lot of outliers (assumption: executives, managers?)
 
@@ -34,6 +38,8 @@ length(salbeg)
 
 mean(salbeg) 
 median(salbeg)
+symmetry.test(salbeg)
+
 wilcox.test(salbeg, mu=1000)
 
 # 4
@@ -79,6 +85,7 @@ symmetry.test(groupA)
 symmetry.test(groupB)
 
 wilcox.test(groupA, groupB)
+par(mfrow=c(1,1))
 boxplot(groupA, groupB, names=c("Males","Femaies"))
 
 # 6
@@ -107,7 +114,6 @@ summary(anova1)
 # summary(anova2)
 
 anova1$coefficients
-
 lillie.test(anova1$residuals)
 shapiro.test(anova1$residuals)
 qqnorm(anova1$residuals)
