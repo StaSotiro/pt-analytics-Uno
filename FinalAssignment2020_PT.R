@@ -2,10 +2,12 @@ require(glmnet)
 require(corrplot)
 library(dplyr)
 library(nortest)
+library(ggplot2)
 library(car)
 library(randtests); 
 library(lmtest);
 library(dplyr)
+library(Metrics)
 library(tidyverse)
 library(caret)
 
@@ -105,8 +107,6 @@ assumptionsTests = function(model){
   print(shapiro.test(rstandard(model)))
   # Constant variance
   
-  # What is this ? 
-  
   print("NCV Test")
   print(ncvTest(model))
   # Computes a score test of the hypothesis of constant error variance against the alternative
@@ -117,11 +117,11 @@ assumptionsTests = function(model){
   StudResiduals = rstudent(model)
   yhat = fitted(model)
   par(mfrow=c(1,2))
-  plot(yhat, StudResiduals, main="Residuals 1")
+  plot(yhat, StudResiduals, main="Studentized Residuals in predicted Values", xlab = "Predicted Values")
   abline(h=c(-2,2), col=2, lty=2)
-  plot(yhat, StudResiduals^2, main="Residuals^2")
+  plot(yhat, StudResiduals^2, main="Sudentized Residuals^2 in predicted Values", xlab = "Predicted Values")
   abline(h=4, col=2, lty=2)
-  plot(model, which=3, main="Residuals 2")
+  plot(model, which=3, main="Linearity")
   
   # ------------------
   yhatQuantiles=cut(yhat, breaks=quantile(yhat, probs=seq(0,1,0.25)), dig.lab=6)
@@ -130,20 +130,19 @@ assumptionsTests = function(model){
   
   print("Levene test of Homogenity")
   print(leveneTest(rstudent(model)~yhatQuantiles))
-  boxplot(rstudent(model)~yhatQuantiles, main="YhatQuantile Plot")
-  
+  boxplot(rstudent(model)~yhatQuantiles, main="Box plot of Yhat/Residuals differences")
+    
   # Non linearity
   print("Non linearity")
   residualPlot(model, type='rstudent', main="Linearity")
-  residualPlots(model, plot=F, type = "rstudent", main="Linearity 2")
+  # residualPlots(model, plot=F, type = "rstudent", main="Linearity 2")
   
   # Independence 
-  plot(rstudent(model), type='l',main="Independence")
+  plot(rstudent(model), type='l',main="Error plot (Residuals)")
   runs.test(model$res) # p > 0.5 we go for non Randomness
   print("DW test")
   print(dwtest(model)) # # p > 0.5 True auto Correlation > 0
-  print("Durbin Watson Test")
-  print(durbinWatsonTest(model))
+  
 }
 
 getLasso = function(testData, startingModel){
@@ -240,6 +239,24 @@ typeof(numPrice)
 for(col in colnames(houseNums)){
   plot(numPrice ~ as.numeric(houseNums[,col]), ylab = "Sale Price", xlab = col, main = paste("Sales Over ",col), type = "h" )
 }
+par(mfrow=c(1,2))
+plot(numPrice ~ as.numeric(houseNums$Garage.Cars), ylab = "Sale Price", xlab = "Garage Cars", main = "Sales Over Garage Cars", type = "h" )
+plot(numPrice ~ as.numeric(houseNums$TotRms.AbvGrd), ylab = "Sale Price", xlab = "Total Rooms Above Ground", main = "Sales Over Total Rooms above Ground", type = "h" )
+houseNums %>%
+  ggplot(aes(x=Gr.Liv.Area, y=SalePrice)) + 
+  geom_line()+
+  ggtitle("Sale Price per Total Ground Living Area") +
+  ylab("Sale Price") + 
+  xlab("Total Ground Living Area") + 
+  ylim(c(0,max(houseData$SalePrice)))
+
+houseNums %>%
+  ggplot(aes(x=Year.Built, y=SalePrice)) + 
+  geom_line()+
+  ggtitle("Sale Price per Year Built") +
+  ylab("Sale Price") + 
+  xlab("Year Built") + 
+  ylim(c(0,max(houseData$SalePrice)))
 # Descrete mostly 
 
 # Garage cars Interesting 
@@ -253,42 +270,46 @@ for(col in colnames(houseNums)){
 #    summarise_all(sum)
 # grouped
 
-par(mfrow = c(1,1))
-hist(houseNums$Lot.Frontage) # outliers right skewed -> affects mean -> mean!=median -> normal distribution .. maybe log would work
-hist(houseNums$Year.Built) # Mostly ppl purchase recently built houses rather than older constructions 
-hist(houseData$Garage.Cars) # Mostly ppl would purchase 
+par(mfrow = c(1,3))
+hist(houseNums$TotRms.AbvGrd, main ="Histogram of Property rooms", xlab="Total property rooms above ground") # outliers right skewed -> affects mean -> mean!=median -> normal distribution .. maybe log would work
+hist(houseData$Garage.Cars, main ="Histogram of Garage Cars frequency", xlab="Garage Cars") # Mostly ppl would purchase 
+hist(houseNums$Year.Built, main ="Histogram of Property Construction Year", xlab="Property Construction Year") # Mostly ppl purchase recently built houses rather than older constructions 
 
 par(mfrow = c(1,1))
-qqPlot(lm(SalePrice ~ Gr.Liv.Area, data = houseData), id.n=2, main='QQplot for Outliers')
+qqPlot(lm(SalePrice ~  Overall.Qual, data = houseData), ylab="Price~OverallQuality Residuals",id.n=2, main='QQplot Sales Over Overall Quality Area')
 
 options(scipen=999)
 plot(numPrice ~ houseNums$Year.Built, ylab = "Sale Price", xlab = "Year Built", main = paste("Sales Over ","year built"), type = "h" )
 # some ppl tend to not purchase super high proices also ccould be raisex ? 
 
-plot(table(houseData$Sale.Type), type = "h", ylim = c(0,1000)) # Interesting
-
-plot(table(houseData$Sale.Condition), type = "h", ylim = c(0,1000))
-plot(table(houseData$Foundation), type = "h", ylim = c(0,1000))
-plot(houseNums$Gr.Liv.Area ~houseNums$Year.Built, ylab = "Living", xlab = "Year Built", main = "Sale Price over Fireplaces", type = "h")
+par(mfrow=c(1,3))
+plot(table(houseData$Sale.Type), type = "h", ylab="Sale Frequency", xlab="Sale Type", main="Property Sales per Type",ylim = c(0,max(table(houseData$Sale.Type)))) # Interesting
+plot(table(houseData$Sale.Condition), type = "h", ylab="Sale Frequency", xlab="Property Condition", main="Property Sales per Condition", ylim = c(0,max(table(houseData$Sale.Condition))))
+plot(table(houseData$Foundation), type = "h", ylab="Sale Frequency", xlab="Property Foundation Type", main="Property Sales per Foundation Type", ylim = c(0,max(table(houseData$Foundation))))
+par(mfrow = c(1,1))
+plot(houseNums$Gr.Liv.Area ~houseNums$Year.Built, ylab = "Total Living Area", xlab = "Year Built", main = "Liviing area per Built Year", type = "h", ylim = c(0,max(houseData$Gr.Liv.Area)))
 corrplot(cor(houseNums))
 
 # Looks like there is a relation between Price and Garage Area and Cars, The built and modification year, Ground living area, 1st floor sf, Baths and 
 # Basically people are looking to be above ground and have a parking space for their cars. Which actually shows what's important in that area. 
 # Could be for security reasons (stealing, damages), or more probably a very crowded area, and parking spots are vital.
 
-##Anova foe Sale price among factor categories
+##Anova foe Sale price among factor categorie
 anova1<-aov(SalePrice~Overall.Qual,data=houseData)
 summary(anova1)
 
 lillie.test(anova1$res);shapiro.test(anova1$res) 
 leveneTest(SalePrice~Overall.Qual,data=houseData) ## all are rejected sale is skewwed so we will proceed with median
-kruskal.test(SalePrice~Exter.Cond,data=houseData)## it is rejected as we expected
+kruskal.test(SalePrice~Overall.Qual,data=houseData)## it is rejected as we expected
 TukeyHSD(anova1,conf.level=0.95) # Median of pairs are equal or not factorial stuff
 
-par(mfrow=c(2,2))
+par(mfrow=c(1,1))
 
 houseNonNums = houseData[,unlist(lapply(houseData, nonNumeric))]
-
+plot(houseNonNums$Overall.Qual, houseData$SalePrice, ylim = c(0,max(houseData$SalePrice)), xlab="Foundation Type", ylab="Sale Price", main="Sale Price per Foundation Type")
+plot(houseNonNums$Sale.Condition, houseData$SalePrice, ylim = c(0,max(houseData$SalePrice)), xlab="Property Condition", ylab="Sale Price", main="Sale Price per Property Condition")
+plot(houseNonNums$Overall.Qual, houseData$SalePrice, ylim = c(0,max(houseData$SalePrice)), xlab="Property Overall Quality", ylab="Sale Price", main="Sale Price per Property Quality")
+plot(houseNonNums$Neighborhood, houseData$SalePrice, ylim = c(0,max(houseData$SalePrice)), xlab="Neighborhood", ylab="Sale Price", main="Sale Price per Neighborhood")
 for(col in colnames(houseNonNums)){
   print(col)
   plot(houseNonNums[,col],houseData$SalePrice, xlab = col, ylab = "Sale price",cex.lab=1.5, main=col)
@@ -314,7 +335,6 @@ for(col in colnames(houseNonNums)){
 # split <- sample(nrow(houseData), size = floor(0.75 * nrow(houseData)))
 # testData <- houseData[-split, ]
 # houseData <- houseData[split, ]
-
 
 model = lm(SalePrice ~ ., data = houseData)
 summary(model)
@@ -381,11 +401,11 @@ NaValues = c("Roof.Style","Mas.Vnr.Type", "Bsmt.Cond","BsmtFin.Type.1","Function
 selectedNames = c(names(aicModel$coefficients),"SalePrice")
 
 cleanAIC = getCleanLasso(aicModel, NaValues, houseData)
+summary(cleanAIC)
 
-aicModel = lm(SalePrice ~ . , data = select(houseData,names(newSelectedNames)))
-summary(aicModel)
+# aicModel = lm(SalePrice ~ . , data = select(houseData,names(newSelectedNames)))
 
-assumptionsTests(aicModel) # Everything Rejected
+assumptionsTests(cleanAIC) # Everything Rejected
 
 # Attempt non linear transformations 
 # Exponential model
@@ -401,15 +421,15 @@ assumptionsTests(expoModel)
 
 # Quadratic addition
 
-quadModel = lm(SalePrice ~ poly(Year.Built, 2) + poly(Full.Bath, 2) + poly(Bedroom.AbvGr, 3) + poly(Gr.Liv.Area, 3)
-               + poly(Total.Bsmt.SF, 3) + Kitchen.Qual + Bsmt.Exposure + Bsmt.Qual + Overall.Cond , data = baseDataExpo)
+quadModel = lm(log(SalePrice) ~ poly(Year.Built, 2) + poly(Bedroom.AbvGr, 2) + poly(Gr.Liv.Area, 2)
+               + poly(Total.Bsmt.SF, 2) + Kitchen.Qual + Bsmt.Exposure + Bsmt.Qual + Overall.Cond , data = baseDataExpo)
 
 assumptionsTests(quadModel) # Fixes some things more
 
 # Quadratic Next values
 
 quadModel2 = lm(log(SalePrice) ~ poly(baseDataExpo$Year.Built, 2) + poly(baseDataExpo$Gr.Liv.Area, 3)
-                + poly(baseDataExpo$Total.Bsmt.SF, 3) + Overall.Cond + Neighborhood, data = baseDataExpo)
+                + poly(baseDataExpo$Total.Bsmt.SF, ) + Overall.Cond + Neighborhood, data = baseDataExpo)
 
 assumptionsTests(quadModel2) # Similar visual results with this simpler model
 
@@ -426,8 +446,8 @@ trainControl = trainControl(method = "cv", number = 10)
 
 trainedModelBase = train(SalePrice ~1+Lot.Area+Land.Contour+Neighborhood+Overall.Qual+Year.Built+Year.Remod.Add+Mas.Vnr.Area+Exter.Qual+Bsmt.Exposure+BsmtFin.SF.1+Total.Bsmt.SF+Gr.Liv.Area+Kitchen.AbvGr+Kitchen.Qual+Fireplaces+Fireplace.Qu+Garage.Area, data = houseData, method = "lm",trControl = trainControl)
 trainedExpoModel = train(log(SalePrice) ~., data = houseData, method = "lm",trControl = trainControl)
-trainedQuadModel1 = train(SalePrice ~ poly(Year.Built, 2) + poly(Full.Bath, 2) + poly(Bedroom.AbvGr, 3) + poly(Gr.Liv.Area, 3)
-                          + poly(BsmtFin.SF.1, 3) + Kitchen.Qual + Bsmt.Exposure + Bsmt.Qual + Overall.Cond , data = houseData, method = "lm",trControl = trainControl)
+trainedQuadModel1 = train(log(SalePrice) ~ poly(Year.Built, 2) + poly(Bedroom.AbvGr, 2) + poly(Gr.Liv.Area, 2)
+                          + poly(Total.Bsmt.SF, 2) + Kitchen.Qual + Bsmt.Exposure + Bsmt.Qual + Overall.Cond , data = houseData, method = "lm",trControl = trainControl)
 trainedQuadModel2 = train(log(SalePrice) ~ poly(Year.Built, 2) + poly(Gr.Liv.Area, 3) + poly(Total.Bsmt.SF, 3) + Overall.Cond , data = houseData, method = "lm",trControl = trainControl)
 
 # Getting some collinearity issues, revisiting Model to remove Neihgbourhood as an estimator
@@ -447,7 +467,7 @@ trainedModelLOOCV = train(SalePrice ~1+Lot.Area+Land.Contour+Neighborhood+Overal
                            Mas.Vnr.Area+Exter.Qual+Bsmt.Exposure+BsmtFin.SF.1+Total.Bsmt.SF+Gr.Liv.Area+Kitchen.AbvGr+Kitchen.Qual+Fireplaces+Fireplace.Qu+Garage.Area, data = houseData, method = "lm",trControl = trainControlLOOCV)
 trainedExpoModelLOOCV = train(log(SalePrice) ~., data = houseData, method = "lm",trControl = trainControlLOOCV)
 trainedQuadModel1LOOCV = train(SalePrice ~ poly(Year.Built, 2) + poly(Full.Bath, 2) + poly(Bedroom.AbvGr, 3) + poly(Gr.Liv.Area, 3)
-                               + poly(BsmtFin.SF.1, 3) + Kitchen.Qual + Bsmt.Exposure + Bsmt.Qual + Overall.Cond + Neighborhood, data = houseData, method = "lm",trControl = trainControlLOOCV)
+                               + poly(BsmtFin.SF.1, 3) + Kitchen.Qual + Bsmt.Exposure + Bsmt.Qual + Overall.Cond, data = houseData, method = "lm",trControl = trainControlLOOCV)
 trainedQuadModel2LOOCV = train(log(SalePrice) ~ poly(baseDataExpo$Year.Built, 2) + poly(baseDataExpo$Gr.Liv.Area, 3)
                                + poly(baseDataExpo$Total.Bsmt.SF, 3) + Overall.Cond + Neighborhood, data = houseData, method = "lm",trControl = trainControlLOOCV)
 # Summarize the results
@@ -488,7 +508,11 @@ predict(expoModel, newdata = formatedTestData)
 quadPre = predict(quadModel, newdata = formatedTestData)
 predict(quadModel2, newdata = formatedTestData)
 
-rmse(actual, predicted)
+quadPreLoocv = predict(trainedQuadModel1LOOCV, newdata = formatedTestData)
+summary(q)
+
+rmse(formatedTestData$SalePrice, quadPre)
+rmse(formatedTestData$SalePrice, quadPreLoocv)
 
 # COmpare rmse with above models
 
